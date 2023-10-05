@@ -24,6 +24,7 @@
 #include "event_groups.h"
 #include "stack_macros.h"
 #include "mem_check.h"
+#include "semphr.h"
 
 // Project-specific includes
 #include "errorHandler.h"
@@ -53,7 +54,7 @@ typedef enum {
 } AlgorithmMode;
 
 AlgorithmMode currentAlgorithm = LEIBNIZ; // Start with Leibniz by default
-
+SemaphoreHandle_t xResetSemaphore = NULL;
 EventGroupHandle_t evButtonEvents;  // Handle for button event group
 
 // Idle task hook for FreeRTOS
@@ -69,6 +70,7 @@ int main(void)
 
 	// Create event group for button events
 	evButtonEvents = xEventGroupCreate();
+	xResetSemaphore = xSemaphoreCreateBinary();
 
 	// Create FreeRTOS tasks
 	xTaskCreate(vControllerTask, "control_tsk", configMINIMAL_STACK_SIZE + 150, NULL, 3, NULL);
@@ -89,6 +91,13 @@ void vPiCalcLeibnizTask(void* pvParameters)
 
 	for (;;)
 	{
+		// Check if the semaphore has been given
+		if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
+			pi_approximation_leibniz = 0.0;
+			iterations = 0;
+			sign = 1.0;
+		}
+		
 		pi_approximation_leibniz += (sign / (2 * iterations + 1)) * 4;  // Leibniz formula term
 		sign = -sign;  // Alternate sign
 		iterations++;
@@ -104,6 +113,12 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 
 	for (;;)
 	{
+		if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
+			pi_approximation_nilkantha = 3.0;
+			n = 2.0;
+			sign = 1.0;
+		}
+		
 		pi_approximation_nilkantha += sign * (4 / (n * (n + 1) * (n + 2)));  // Nilkantha series term
 		sign = -sign;  // Alternate sign
 		n += 2;
@@ -128,6 +143,7 @@ void vControllerTask(void* pvParameters)
 			break;
 
 			case EVBUTTONS_S3: // Reset
+			xSemaphoreGive(xResetSemaphore);
 			break;
 
 			case EVBUTTONS_S4: // Change Algorithm
