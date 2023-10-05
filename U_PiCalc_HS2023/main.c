@@ -25,22 +25,39 @@
 #include "NHD0420Driver.h"
 #include "ButtonHandler.h"
 
-void controllerTask(void* pvParameters);
-void PiCalcLeibnizTask(void* pvParameters);
-void PiCalcNilkanthaTask(void* pvParameters);
+extern void vApplicationIdleHook(void);
+void vControllerTask(void* pvParameters);
+void vPiCalcLeibnizTask(void* pvParameters);
+void vPiCalcNilkanthaTask(void* pvParameters);
+void vButtonHandler(void* param);
 
 // Shared variable to hold the approximation of Pi (for display or analysis)
 volatile float pi_approximation_leibniz = 0.0;
 volatile float pi_approximation_nilkantha = 3.0;  // Nilkantha starts at 3
 
+#define EVBUTTONS_S1	1<<0
+#define EVBUTTONS_S2	1<<1
+#define EVBUTTONS_S3	1<<2
+#define EVBUTTONS_S4	1<<3
+#define EVBUTTONS_CLEAR	0xFF
+EventGroupHandle_t evButtonEvents;
+
+void vApplicationIdleHook( void )
+{
+	
+}
+
 int main(void)
 {
 	vInitClock();
 	vInitDisplay();
+	
+	evButtonEvents = xEventGroupCreate();
 
-	xTaskCreate(controllerTask, "control_tsk", configMINIMAL_STACK_SIZE + 150, NULL, 3, NULL);
-	xTaskCreate(PiCalcLeibnizTask, "pi_calc_leibniz", configMINIMAL_STACK_SIZE + 150, NULL, 2, NULL);
-	xTaskCreate(PiCalcNilkanthaTask, "pi_calc_nilkantha", configMINIMAL_STACK_SIZE + 150, NULL, 2, NULL);
+	xTaskCreate(vControllerTask, "control_tsk", configMINIMAL_STACK_SIZE + 150, NULL, 3, NULL);
+	xTaskCreate(vPiCalcLeibnizTask, "pi_calc_leibniz", configMINIMAL_STACK_SIZE + 150, NULL, 2, NULL);
+	xTaskCreate(vPiCalcNilkanthaTask, "pi_calc_nilkantha", configMINIMAL_STACK_SIZE + 150, NULL, 2, NULL);
+	xTaskCreate(vButtonHandler, (const char*) "btTask", configMINIMAL_STACK_SIZE+30, NULL, 2, NULL);
 
 	vDisplayClear();
 	vDisplayWriteStringAtPos(0, 0, "PI-Calculator");
@@ -49,12 +66,12 @@ int main(void)
 	return 0;
 }
 
-void PiCalcLeibnizTask(void* pvParameters)
+void vPiCalcLeibnizTask(void* pvParameters)
 {
-	int iterations = 0;  // Keep track of the number of iterations/terms
+	uint16_t iterations = 0;  // Keep track of the number of iterations/terms
 	float sign = 1.0;   // To alternate between adding and subtracting terms
 
-	while (1)
+	for (;;)
 	{
 		pi_approximation_leibniz += (sign / (2 * iterations + 1)) * 4;  // Leibniz formula term
 		sign = -sign;  // Alternate sign
@@ -64,12 +81,12 @@ void PiCalcLeibnizTask(void* pvParameters)
 }
 
 // Nilkantha Task for Calculating Pi
-void PiCalcNilkanthaTask(void* pvParameters)
+void vPiCalcNilkanthaTask(void* pvParameters)
 {
 	float n = 2.0;  // Start term
 	float sign = 1.0;  // Start with adding
 
-	while (1)
+	for (;;)
 	{
 		pi_approximation_nilkantha += sign * (4 / (n * (n + 1) * (n + 2)));  // Nilkantha series term
 		sign = -sign;  // Alternate sign
@@ -78,46 +95,59 @@ void PiCalcNilkanthaTask(void* pvParameters)
 	}
 }
 
-void controllerTask(void* pvParameters)
+void vControllerTask(void* pvParameters)
 {
-	initButtons();
-
 	for (;;)
 	{
-		updateButtons();
+		uint32_t buttonState = (xEventGroupGetBits(evButtonEvents)) & 0x000000FF; // Read Button States from EventGroup
+		xEventGroupClearBits(evButtonEvents, EVBUTTONS_CLEAR);
 
-		// Handle button presses
-		for (int button = BUTTON1; button <= BUTTON4; ++button)
+		switch (buttonState)
 		{
-			int pressType = getButtonPress(button);
-
-			switch (pressType)
+			case EVBUTTONS_S1:
 			{
-				case SHORT_PRESSED:
-				if (button == BUTTON1)
-				{
-					char pistringLeibniz[20];
-					char pistringNilkantha[20];
-
-					// Display the Leibniz approximation of pi
-					sprintf(pistringLeibniz, "L PI: %.8f", pi_approximation_leibniz);
-					vDisplayWriteStringAtPos(1, 0, "%s", pistringLeibniz);
-
-					// Display the Nilkantha approximation of pi
-					sprintf(pistringNilkantha, "N PI: %.8f", pi_approximation_nilkantha);
-					vDisplayWriteStringAtPos(2, 0, "%s", pistringNilkantha);
-				}
-				break;
-
-				case LONG_PRESSED:
-				// Handle long press for each button if needed
-				break;
-
-				default:
-				break;
+				char pistringLeibniz[20];
+				vDisplayClear();
+				// Display the Leibniz approximation of pi
+				vDisplayWriteStringAtPos(0, 0, "Leibniz");
+				sprintf(pistringLeibniz, "PI: %.8f", pi_approximation_leibniz);
+				vDisplayWriteStringAtPos(1, 0, "%s", pistringLeibniz);
 			}
+			break;
+
+			case EVBUTTONS_S2:
+			{
+				char pistringNilkantha[20];
+				// Display the Nilkantha approximation of pi
+				vDisplayClear();
+				vDisplayWriteStringAtPos(0, 0, "Nilkantha");
+				sprintf(pistringNilkantha, "PI: %.8f", pi_approximation_nilkantha);
+				vDisplayWriteStringAtPos(1, 0, "%s", pistringNilkantha);
+			}
+			break;
+			default:
+			break;
 		}
 
 		vTaskDelay(pdMS_TO_TICKS(10));
+	}
+}
+
+void vButtonHandler(void* param) {
+	initButtons(); //Initialize Button handler
+	for(;;) {
+		updateButtons(); //Update Button States
+		
+		//Read Button State and set EventBits in EventGroup
+		if(getButtonPress(BUTTON1) == SHORT_PRESSED) {
+			xEventGroupSetBits(evButtonEvents, EVBUTTONS_S1);
+		}
+		if(getButtonPress(BUTTON2) == SHORT_PRESSED) {
+			xEventGroupSetBits(evButtonEvents, EVBUTTONS_S2);
+		}
+		if(getButtonPress(BUTTON3) == SHORT_PRESSED) {
+			xEventGroupSetBits(evButtonEvents, EVBUTTONS_S3);
+		}
+		vTaskDelay((1000/BUTTON_UPDATE_FREQUENCY_HZ)/portTICK_RATE_MS); //Button update Delay
 	}
 }
