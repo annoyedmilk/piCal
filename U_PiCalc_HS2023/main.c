@@ -36,16 +36,23 @@ void vPiCalcLeibnizTask(void* pvParameters);
 void vPiCalcNilkanthaTask(void* pvParameters);
 void vButtonHandler(void* param);
 
-// Shared variable to hold the approximation of Pi (for display or analysis)
-volatile float pi_approximation_leibniz = 0.0;
-volatile float pi_approximation_nilkantha = 3.0;  // Nilkantha starts at 3
-
 // Button event bit definitions
 #define EVBUTTONS_S1	1<<0
 #define EVBUTTONS_S2	1<<1
 #define EVBUTTONS_S3	1<<2
 #define EVBUTTONS_S4	1<<3
 #define EVBUTTONS_CLEAR	0xFF
+
+// Shared variable to hold the approximation of Pi (for display or analysis)
+volatile float pi_approximation_leibniz = 0.0;
+volatile float pi_approximation_nilkantha = 3.0;  // Nilkantha starts at 3
+
+typedef enum {
+	LEIBNIZ,
+	NILKANTHA
+} AlgorithmMode;
+
+AlgorithmMode currentAlgorithm = LEIBNIZ; // Start with Leibniz by default
 
 EventGroupHandle_t evButtonEvents;  // Handle for button event group
 
@@ -68,10 +75,6 @@ int main(void)
 	xTaskCreate(vPiCalcLeibnizTask, "pi_calc_leibniz", configMINIMAL_STACK_SIZE + 150, NULL, 2, NULL);
 	xTaskCreate(vPiCalcNilkanthaTask, "pi_calc_nilkantha", configMINIMAL_STACK_SIZE + 150, NULL, 2, NULL);
 	xTaskCreate(vButtonHandler, (const char*) "btTask", configMINIMAL_STACK_SIZE+30, NULL, 2, NULL);
-
-	// Initialize display with startup message
-	vDisplayClear();
-	vDisplayWriteStringAtPos(0, 0, "PI-Calculator");
 
 	// Start the FreeRTOS scheduler
 	vTaskStartScheduler();
@@ -118,29 +121,43 @@ void vControllerTask(void* pvParameters)
 
 		switch (buttonState)
 		{
-			case EVBUTTONS_S1:
-			{
-				char pistringLeibniz[20];
-				// Display the Leibniz approximation of pi
-				vDisplayClear();
-				vDisplayWriteStringAtPos(0, 0, "Leibniz");
-				sprintf(pistringLeibniz, "PI: %.8f", pi_approximation_leibniz);
-				vDisplayWriteStringAtPos(1, 0, "%s", pistringLeibniz);
-			}
+			case EVBUTTONS_S1: // Start
 			break;
 
-			case EVBUTTONS_S2:
-			{
-				char pistringNilkantha[20];
-				// Display the Nilkantha approximation of pi
-				vDisplayClear();
-				vDisplayWriteStringAtPos(0, 0, "Nilkantha");
-				sprintf(pistringNilkantha, "PI: %.8f", pi_approximation_nilkantha);
-				vDisplayWriteStringAtPos(1, 0, "%s", pistringNilkantha);
-			}
+			case EVBUTTONS_S2: // Stop
 			break;
+
+			case EVBUTTONS_S3: // Reset
+			break;
+
+			case EVBUTTONS_S4: // Change Algorithm
+			currentAlgorithm = (currentAlgorithm == LEIBNIZ) ? NILKANTHA : LEIBNIZ; // Toggle algorithm
+			break;
+
 			default:
 			break;
+		}
+
+		// Display current algorithm's approximation of pi
+		if (currentAlgorithm == LEIBNIZ)
+		{
+			char pistringLeibniz[20];
+			// Display the Leibniz approximation of pi
+			vDisplayClear();
+			vDisplayWriteStringAtPos(0, 0, "Leibniz");
+			sprintf(pistringLeibniz, "PI: %.8f", pi_approximation_leibniz);
+			vDisplayWriteStringAtPos(1, 0, "%s", pistringLeibniz);
+			vDisplayWriteStringAtPos(3, 0, "#STR #STP #RST #CALG");
+		}
+		else
+		{
+			char pistringNilkantha[20];
+			// Display the Nilkantha approximation of pi
+			vDisplayClear();
+			vDisplayWriteStringAtPos(0, 0, "Nilkantha");
+			sprintf(pistringNilkantha, "PI: %.8f", pi_approximation_nilkantha);
+			vDisplayWriteStringAtPos(1, 0, "%s", pistringNilkantha);
+			vDisplayWriteStringAtPos(3, 0, "#STR #STP #RST #CALG");
 		}
 
 		vTaskDelay(pdMS_TO_TICKS(10));
