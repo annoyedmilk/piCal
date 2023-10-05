@@ -55,6 +55,8 @@ typedef enum {
 
 AlgorithmMode currentAlgorithm = LEIBNIZ; // Start with Leibniz by default
 SemaphoreHandle_t xResetSemaphore = NULL;
+SemaphoreHandle_t xStartSemaphore = NULL;
+SemaphoreHandle_t xStopSemaphore = NULL;
 EventGroupHandle_t evButtonEvents;  // Handle for button event group
 
 // Idle task hook for FreeRTOS
@@ -71,6 +73,8 @@ int main(void)
 	// Create event group for button events
 	evButtonEvents = xEventGroupCreate();
 	xResetSemaphore = xSemaphoreCreateBinary();
+	xStartSemaphore = xSemaphoreCreateBinary();
+	xStopSemaphore = xSemaphoreCreateBinary();
 
 	// Create FreeRTOS tasks
 	xTaskCreate(vControllerTask, "control_tsk", configMINIMAL_STACK_SIZE + 150, NULL, 3, NULL);
@@ -91,18 +95,22 @@ void vPiCalcLeibnizTask(void* pvParameters)
 
 	for (;;)
 	{
-		// Check if the semaphore has been given
-		if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
-			pi_approximation_leibniz = 0.0;
-			iterations = 0;
-			sign = 1.0;
+		if(xSemaphoreTake(xStartSemaphore, portMAX_DELAY) == pdTRUE) {
+			while(xSemaphoreTake(xStopSemaphore, 0) == pdFALSE) {
+				if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
+					pi_approximation_leibniz = 0.0;
+					iterations = 0;
+					sign = 1.0;
+				}
+
+				pi_approximation_leibniz += (sign / (2 * iterations + 1)) * 4;
+				sign = -sign;
+				iterations++;
+				vTaskDelay(pdMS_TO_TICKS(10));
+			}
 		}
-		
-		pi_approximation_leibniz += (sign / (2 * iterations + 1)) * 4;  // Leibniz formula term
-		sign = -sign;  // Alternate sign
-		iterations++;
-		vTaskDelay(pdMS_TO_TICKS(10));
 	}
+
 }
 
 // Task for calculating pi using the Nilkantha formula
@@ -113,16 +121,20 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 
 	for (;;)
 	{
-		if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
-			pi_approximation_nilkantha = 3.0;
-			n = 2.0;
-			sign = 1.0;
+		if(xSemaphoreTake(xStartSemaphore, portMAX_DELAY) == pdTRUE) {
+			while(xSemaphoreTake(xStopSemaphore, 0) == pdFALSE) {
+				if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
+					pi_approximation_nilkantha = 3.0;
+					n = 2.0;
+					sign = 1.0;
+				}
+
+				pi_approximation_nilkantha += sign * (4 / (n * (n + 1) * (n + 2)));
+				sign = -sign;
+				n += 2;
+				vTaskDelay(pdMS_TO_TICKS(10));
+			}
 		}
-		
-		pi_approximation_nilkantha += sign * (4 / (n * (n + 1) * (n + 2)));  // Nilkantha series term
-		sign = -sign;  // Alternate sign
-		n += 2;
-		vTaskDelay(pdMS_TO_TICKS(10));
 	}
 }
 
@@ -137,11 +149,13 @@ void vControllerTask(void* pvParameters)
 		switch (buttonState)
 		{
 			case EVBUTTONS_S1: // Start
+			xSemaphoreGive(xStartSemaphore);
 			break;
 
 			case EVBUTTONS_S2: // Stop
+			xSemaphoreGive(xStopSemaphore);
 			break;
-
+			
 			case EVBUTTONS_S3: // Reset
 			xSemaphoreGive(xResetSemaphore);
 			break;
