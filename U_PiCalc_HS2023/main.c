@@ -121,8 +121,8 @@ int main(void) {
 // Task for calculating pi using the Leibniz formula
 void vPiCalcLeibnizTask(void* pvParameters)
 {
-	uint16_t iterations = 0;  // Keep track of the number of iterations/terms
-	float sign = 1.0;   // To alternate between adding and subtracting terms
+	uint16_t iterations = 0;
+	float sign = 1.0;
 
 	for (;;)
 	{
@@ -142,10 +142,10 @@ void vPiCalcLeibnizTask(void* pvParameters)
 
 				// Check accuracy for Leibniz
 				if (!piAccuracyAchievedLeibniz && fabs(pi_approximation_leibniz - M_PI) < 0.00001) {
-					elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;
 					piAccuracyAchievedLeibniz = pdTRUE;
 				}
 			}
+			elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;  // Capture the elapsed time once stopped
 		}
 	}
 }
@@ -153,8 +153,8 @@ void vPiCalcLeibnizTask(void* pvParameters)
 // Task for calculating pi using the Nilkantha formula
 void vPiCalcNilkanthaTask(void* pvParameters)
 {
-	float n = 2.0;  // Start term
-	float sign = 1.0;  // Start with adding
+	float n = 2.0;
+	float sign = 1.0;
 
 	for (;;)
 	{
@@ -174,10 +174,10 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 
 				// Check accuracy for Nilkantha
 				if (!piAccuracyAchievedNilkantha && fabs(pi_approximation_nilkantha - M_PI) < 0.00001) {
-					elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;
 					piAccuracyAchievedNilkantha = pdTRUE;
 				}
 			}
+			elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;  // Capture the elapsed time once stopped
 		}
 	}
 }
