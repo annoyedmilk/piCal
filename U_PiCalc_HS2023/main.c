@@ -4,7 +4,9 @@
  * Author : Marco Müller
  */
 
+// ===============================
 // Standard and AVR includes
+// ===============================
 #include "math.h"
 #include "stdio.h"
 #include "string.h"
@@ -17,7 +19,9 @@
 #include "init.h"
 #include "utils.h"
 
+// ===============================
 // FreeRTOS includes
+// ===============================
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -26,65 +30,92 @@
 #include "mem_check.h"
 #include "semphr.h"
 
+// ===============================
 // Project-specific includes
+// ===============================
 #include "errorHandler.h"
 #include "NHD0420Driver.h"
 #include "ButtonHandler.h"
 
+// ===============================
+// Function Declarations
+// ===============================
 extern void vApplicationIdleHook(void);
 void vControllerTask(void* pvParameters);
 void vPiCalcLeibnizTask(void* pvParameters);
 void vPiCalcNilkanthaTask(void* pvParameters);
-void vButtonHandler(void* param);
+void vButtonHandler(void* pvParameters);
 
+// ===============================
 // Button event bit definitions
-#define EVBUTTONS_S1	1<<0
-#define EVBUTTONS_S2	1<<1
-#define EVBUTTONS_S3	1<<2
-#define EVBUTTONS_S4	1<<3
-#define EVBUTTONS_CLEAR	0xFF
+// ===============================
+#define EVBUTTONS_S1    1<<0
+#define EVBUTTONS_S2    1<<1
+#define EVBUTTONS_S3    1<<2
+#define EVBUTTONS_S4    1<<3
+#define EVBUTTONS_CLEAR 0xFF
 
-// Shared variable to hold the approximation of Pi (for display or analysis)
+// ===============================
+// Enumerations
+// ===============================
+typedef enum {
+    LEIBNIZ,
+    NILKANTHA
+} AlgorithmMode;
+
+// ===============================
+// Global Variables
+// ===============================
+// Shared variables to hold the approximation of Pi (for display or analysis)
 volatile float pi_approximation_leibniz = 0.0;
 volatile float pi_approximation_nilkantha = 3.0;  // Nilkantha starts at 3
 
-typedef enum {
-	LEIBNIZ,
-	NILKANTHA
-} AlgorithmMode;
+// Variables for PI accuracy tracking
+volatile BaseType_t piAccuracyAchievedLeibniz = pdFALSE;
+volatile BaseType_t piAccuracyAchievedNilkantha = pdFALSE;
 
-AlgorithmMode currentAlgorithm = LEIBNIZ; // Start with Leibniz by default
+// Time tracking variables
+TickType_t startTimeLeibniz = 0, elapsedTimeLeibniz = 0;
+TickType_t startTimeNilkantha = 0, elapsedTimeNilkantha = 0;
+
+// Current algorithm mode (default is Leibniz)
+AlgorithmMode currentAlgorithm = LEIBNIZ;
+
+// Semaphores and Event Groups
 SemaphoreHandle_t xResetSemaphore = NULL;
 SemaphoreHandle_t xStartSemaphore = NULL;
 SemaphoreHandle_t xStopSemaphore = NULL;
 EventGroupHandle_t evButtonEvents;  // Handle for button event group
 
+// ===============================
+// Function Definitions
+// ===============================
+
 // Idle task hook for FreeRTOS
-void vApplicationIdleHook(void)
-{
-	// Currently empty
+void vApplicationIdleHook(void) {
+    // Currently empty
 }
 
-int main(void)
-{
-	vInitClock();   // Initialize system clock
-	vInitDisplay(); // Initialize display
+// Main function
+int main(void) {
+    vInitClock();   // Initialize system clock
+    vInitDisplay(); // Initialize display
 
-	// Create event group for button events
-	evButtonEvents = xEventGroupCreate();
-	xResetSemaphore = xSemaphoreCreateBinary();
-	xStartSemaphore = xSemaphoreCreateBinary();
-	xStopSemaphore = xSemaphoreCreateBinary();
+    // Create event group for button events and semaphores
+    evButtonEvents = xEventGroupCreate();
+    xResetSemaphore = xSemaphoreCreateBinary();
+    xStartSemaphore = xSemaphoreCreateBinary();
+    xStopSemaphore = xSemaphoreCreateBinary();
 
-	// Create FreeRTOS tasks
-	xTaskCreate(vControllerTask, "control_tsk", configMINIMAL_STACK_SIZE + 150, NULL, 3, NULL);
-	xTaskCreate(vPiCalcLeibnizTask, "pi_calc_leibniz", configMINIMAL_STACK_SIZE + 150, NULL, 2, NULL);
-	xTaskCreate(vPiCalcNilkanthaTask, "pi_calc_nilkantha", configMINIMAL_STACK_SIZE + 150, NULL, 2, NULL);
-	xTaskCreate(vButtonHandler, (const char*) "btTask", configMINIMAL_STACK_SIZE+30, NULL, 2, NULL);
+    // Create FreeRTOS tasks with optimized stack size and priority
+    xTaskCreate(vButtonHandler, "btTask", configMINIMAL_STACK_SIZE + 50, NULL, 4, NULL);  
+    xTaskCreate(vControllerTask, "control_tsk", configMINIMAL_STACK_SIZE + 100, NULL, 3, NULL); 
+    xTaskCreate(vPiCalcLeibnizTask, "pi_calc_leibniz", configMINIMAL_STACK_SIZE + 200, NULL, 2, NULL);  
+    xTaskCreate(vPiCalcNilkanthaTask, "pi_calc_nilkantha", configMINIMAL_STACK_SIZE + 200, NULL, 2, NULL); 
 
-	// Start the FreeRTOS scheduler
-	vTaskStartScheduler();
-	return 0;
+    // Start the FreeRTOS scheduler
+    vTaskStartScheduler();
+    return 0;
 }
 
 // Task for calculating pi using the Leibniz formula
@@ -96,6 +127,7 @@ void vPiCalcLeibnizTask(void* pvParameters)
 	for (;;)
 	{
 		if(xSemaphoreTake(xStartSemaphore, portMAX_DELAY) == pdTRUE) {
+			startTimeLeibniz = xTaskGetTickCount();  // Capture the start time for Leibniz
 			while(xSemaphoreTake(xStopSemaphore, 0) == pdFALSE) {
 				if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
 					pi_approximation_leibniz = 0.0;
@@ -107,10 +139,15 @@ void vPiCalcLeibnizTask(void* pvParameters)
 				sign = -sign;
 				iterations++;
 				vTaskDelay(pdMS_TO_TICKS(10));
+
+				// Check accuracy for Leibniz
+				if (!piAccuracyAchievedLeibniz && fabs(pi_approximation_leibniz - M_PI) < 0.00001) {
+					elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;
+					piAccuracyAchievedLeibniz = pdTRUE;
+				}
 			}
 		}
 	}
-
 }
 
 // Task for calculating pi using the Nilkantha formula
@@ -122,6 +159,7 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 	for (;;)
 	{
 		if(xSemaphoreTake(xStartSemaphore, portMAX_DELAY) == pdTRUE) {
+			startTimeNilkantha = xTaskGetTickCount();  // Capture the start time for Nilkantha
 			while(xSemaphoreTake(xStopSemaphore, 0) == pdFALSE) {
 				if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
 					pi_approximation_nilkantha = 3.0;
@@ -133,6 +171,12 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 				sign = -sign;
 				n += 2;
 				vTaskDelay(pdMS_TO_TICKS(10));
+
+				// Check accuracy for Nilkantha
+				if (!piAccuracyAchievedNilkantha && fabs(pi_approximation_nilkantha - M_PI) < 0.00001) {
+					elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;
+					piAccuracyAchievedNilkantha = pdTRUE;
+				}
 			}
 		}
 	}
@@ -167,26 +211,44 @@ void vControllerTask(void* pvParameters)
 			default:
 			break;
 		}
+		
+		if (!piAccuracyAchievedLeibniz) {
+			elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;
+		}
+		if (!piAccuracyAchievedNilkantha) {
+			elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;
+		}
 
 		// Display current algorithm's approximation of pi
 		if (currentAlgorithm == LEIBNIZ)
 		{
 			char pistringLeibniz[20];
-			// Display the Leibniz approximation of pi
+			char timeStringLeibniz[20];
+			
 			vDisplayClear();
-			vDisplayWriteStringAtPos(0, 0, "Leibniz");
+			vDisplayWriteStringAtPos(0, 0, "Leibniz Series");
 			sprintf(pistringLeibniz, "PI: %.8f", pi_approximation_leibniz);
 			vDisplayWriteStringAtPos(1, 0, "%s", pistringLeibniz);
+			
+			sprintf(timeStringLeibniz, "Time: %lu ms", elapsedTimeLeibniz);
+			vDisplayWriteStringAtPos(2, 0, "%s", timeStringLeibniz);
+			
 			vDisplayWriteStringAtPos(3, 0, "#STR #STP #RST #CALG");
 		}
-		else
+
+		if (currentAlgorithm == NILKANTHA)
 		{
 			char pistringNilkantha[20];
-			// Display the Nilkantha approximation of pi
+			char timeStringNilkantha[20];
+			
 			vDisplayClear();
-			vDisplayWriteStringAtPos(0, 0, "Nilkantha");
+			vDisplayWriteStringAtPos(0, 0, "Nilkantha Method");
 			sprintf(pistringNilkantha, "PI: %.8f", pi_approximation_nilkantha);
 			vDisplayWriteStringAtPos(1, 0, "%s", pistringNilkantha);
+			
+			sprintf(timeStringNilkantha, "Time: %lu ms", elapsedTimeNilkantha);
+			vDisplayWriteStringAtPos(2, 0, "%s", timeStringNilkantha);
+			
 			vDisplayWriteStringAtPos(3, 0, "#STR #STP #RST #CALG");
 		}
 
@@ -195,7 +257,7 @@ void vControllerTask(void* pvParameters)
 }
 
 // Task for handling button states and setting appropriate event bits
-void vButtonHandler(void* param) {
+void vButtonHandler(void* pvParameters) {
 	initButtons(); // Initialize Button handler
 	for(;;) {
 		updateButtons(); // Update Button States
@@ -214,7 +276,6 @@ void vButtonHandler(void* param) {
 			xEventGroupSetBits(evButtonEvents, EVBUTTONS_S4);
 		}
 
-		// Delay to match the button update frequency
 		vTaskDelay((1000/BUTTON_UPDATE_FREQUENCY_HZ)/portTICK_RATE_MS);
 	}
 }
