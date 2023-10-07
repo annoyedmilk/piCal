@@ -1,7 +1,7 @@
 /* U_PiCalc_HS2023.c
  *
  * Created: 3.10.2023
- * Author : Marco Müller
+ * Author : Marco Mueller
  */
 
 // ===============================
@@ -81,7 +81,7 @@ volatile BaseType_t piAccuracyAchievedNilkantha = pdFALSE;
 TickType_t startTimeLeibniz = 0, elapsedTimeLeibniz = 0;
 TickType_t startTimeNilkantha = 0, elapsedTimeNilkantha = 0;
 
-// Taks handling for suspend
+// Task handling for suspend
 TaskHandle_t xLeibnizTaskHandle = NULL;
 TaskHandle_t xNilkanthaTaskHandle = NULL;
 
@@ -156,7 +156,7 @@ void vPiCalcLeibnizTask(void* pvParameters)
 
 		if (isRunning)
 		{
-			// Leibniz formula for ? approximation
+			// Leibniz formula for pi approximation
 			pi_approximation_leibniz += (sign / (2 * iterations + 1)) * 4;
 			
 			// Check for accuracy
@@ -164,7 +164,7 @@ void vPiCalcLeibnizTask(void* pvParameters)
 			{
 				piAccuracyAchievedLeibniz = pdTRUE;
 				elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;
-				isRunning = false; // Optionally, stop the calculation after accuracy is achieved
+				//isRunning = false; // Optionally, stop the calculation after accuracy is achieved
 			}
 
 			sign = -sign;
@@ -209,16 +209,15 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 
 		if (isRunning)
 		{
-			// Nilkantha formula for ? approximation
+			// Nilkantha formula for pi approximation
 			pi_approximation_nilkantha += sign * (4.0 / ((2 * iterations + 2) * (2 * iterations + 3) * (2 * iterations + 4)));
-
 			
 			// Check for accuracy
 			if (!piAccuracyAchievedNilkantha && fabs(pi_approximation_nilkantha - M_PI) < 0.00001)
 			{
 				piAccuracyAchievedNilkantha = pdTRUE;
 				elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;
-				isRunning = false; // Optionally, stop the calculation after accuracy is achieved
+				//isRunning = false; // Optionally, stop the calculation after accuracy is achieved
 			}
 
 			sign = -sign;
