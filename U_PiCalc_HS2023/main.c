@@ -63,6 +63,9 @@ typedef enum {
     NILKANTHA
 } AlgorithmMode;
 
+// Current algorithm mode (default is Leibniz)
+AlgorithmMode currentAlgorithm = LEIBNIZ;
+
 // ===============================
 // Global Variables
 // ===============================
@@ -78,8 +81,9 @@ volatile BaseType_t piAccuracyAchievedNilkantha = pdFALSE;
 TickType_t startTimeLeibniz = 0, elapsedTimeLeibniz = 0;
 TickType_t startTimeNilkantha = 0, elapsedTimeNilkantha = 0;
 
-// Current algorithm mode (default is Leibniz)
-AlgorithmMode currentAlgorithm = LEIBNIZ;
+// Taks handling for suspend
+TaskHandle_t xLeibnizTaskHandle = NULL;
+TaskHandle_t xNilkanthaTaskHandle = NULL;
 
 // Semaphores and Event Groups
 SemaphoreHandle_t xResetSemaphore = NULL;
@@ -110,8 +114,8 @@ int main(void) {
     // Create FreeRTOS tasks with optimized stack size and priority
     xTaskCreate(vButtonHandler, "btTask", configMINIMAL_STACK_SIZE + 50, NULL, 4, NULL);  
     xTaskCreate(vControllerTask, "control_tsk", configMINIMAL_STACK_SIZE + 100, NULL, 3, NULL); 
-    xTaskCreate(vPiCalcLeibnizTask, "pi_calc_leibniz", configMINIMAL_STACK_SIZE + 200, NULL, 2, NULL);  
-    xTaskCreate(vPiCalcNilkanthaTask, "pi_calc_nilkantha", configMINIMAL_STACK_SIZE + 200, NULL, 2, NULL); 
+	xTaskCreate(vPiCalcLeibnizTask, "pi_calc_leibniz", configMINIMAL_STACK_SIZE + 200, NULL, 2, &xLeibnizTaskHandle);
+	xTaskCreate(vPiCalcNilkanthaTask, "pi_calc_nilkantha", configMINIMAL_STACK_SIZE + 200, NULL, 2, &xNilkanthaTaskHandle);
 
     // Start the FreeRTOS scheduler
     vTaskStartScheduler();
@@ -121,64 +125,107 @@ int main(void) {
 // Task for calculating pi using the Leibniz formula
 void vPiCalcLeibnizTask(void* pvParameters)
 {
-	uint16_t iterations = 0;
+	uint32_t iterations = 0;
 	float sign = 1.0;
+	bool isRunning = false;
 
 	for (;;)
 	{
-		if(xSemaphoreTake(xStartSemaphore, portMAX_DELAY) == pdTRUE) {
-			startTimeLeibniz = xTaskGetTickCount();  // Capture the start time for Leibniz
-			while(xSemaphoreTake(xStopSemaphore, 0) == pdFALSE) {
-				if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
-					pi_approximation_leibniz = 0.0;
-					iterations = 0;
-					sign = 1.0;
-				}
-
-				pi_approximation_leibniz += (sign / (2 * iterations + 1)) * 4;
-				sign = -sign;
-				iterations++;
-				vTaskDelay(pdMS_TO_TICKS(10));
-
-				// Check accuracy for Leibniz
-				if (!piAccuracyAchievedLeibniz && fabs(pi_approximation_leibniz - M_PI) < 0.00001) {
-					piAccuracyAchievedLeibniz = pdTRUE;
-				}
-			}
-			elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;  // Capture the elapsed time once stopped
+		// Check if we should start the calculation
+		if (xSemaphoreTake(xStartSemaphore, 0) == pdTRUE)
+		{
+			isRunning = true;
+			startTimeLeibniz = xTaskGetTickCount(); // Capture start time
 		}
+
+		// Check if we should stop the calculation
+		if (xSemaphoreTake(xStopSemaphore, 0) == pdTRUE)
+		{
+			isRunning = false;
+		}
+
+		// Check if we should reset
+		if (xSemaphoreTake(xResetSemaphore, 0) == pdTRUE)
+		{
+			pi_approximation_leibniz = 0.0;
+			iterations = 0;
+			sign = 1.0;
+			isRunning = false;
+			piAccuracyAchievedLeibniz = pdFALSE;
+		}
+
+		if (isRunning)
+		{
+			// Leibniz formula for ? approximation
+			pi_approximation_leibniz += (sign / (2 * iterations + 1)) * 4;
+			
+			// Check for accuracy
+			if (!piAccuracyAchievedLeibniz && fabs(pi_approximation_leibniz - M_PI) < 0.00001)
+			{
+				piAccuracyAchievedLeibniz = pdTRUE;
+				elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;
+				isRunning = false; // Optionally, stop the calculation after accuracy is achieved
+			}
+
+			sign = -sign;
+			iterations++;
+		}
+
+		vTaskDelay(pdMS_TO_TICKS(10)); // Optional delay to prevent CPU hogging
 	}
 }
 
 // Task for calculating pi using the Nilkantha formula
 void vPiCalcNilkanthaTask(void* pvParameters)
 {
-	float n = 2.0;
+	uint32_t iterations = 0;
 	float sign = 1.0;
+	bool isRunning = false;
 
 	for (;;)
 	{
-		if(xSemaphoreTake(xStartSemaphore, portMAX_DELAY) == pdTRUE) {
-			startTimeNilkantha = xTaskGetTickCount();  // Capture the start time for Nilkantha
-			while(xSemaphoreTake(xStopSemaphore, 0) == pdFALSE) {
-				if(xSemaphoreTake(xResetSemaphore, 0) == pdTRUE) {
-					pi_approximation_nilkantha = 3.0;
-					n = 2.0;
-					sign = 1.0;
-				}
-
-				pi_approximation_nilkantha += sign * (4 / (n * (n + 1) * (n + 2)));
-				sign = -sign;
-				n += 2;
-				vTaskDelay(pdMS_TO_TICKS(10));
-
-				// Check accuracy for Nilkantha
-				if (!piAccuracyAchievedNilkantha && fabs(pi_approximation_nilkantha - M_PI) < 0.00001) {
-					piAccuracyAchievedNilkantha = pdTRUE;
-				}
-			}
-			elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;  // Capture the elapsed time once stopped
+		// Check if we should start the calculation
+		if (xSemaphoreTake(xStartSemaphore, 0) == pdTRUE)
+		{
+			isRunning = true;
+			startTimeNilkantha = xTaskGetTickCount(); // Capture start time
 		}
+
+		// Check if we should stop the calculation
+		if (xSemaphoreTake(xStopSemaphore, 0) == pdTRUE)
+		{
+			isRunning = false;
+		}
+
+		// Check if we should reset
+		if (xSemaphoreTake(xResetSemaphore, 0) == pdTRUE)
+		{
+			pi_approximation_nilkantha = 3.0;
+			iterations = 0;
+			sign = 1.0;
+			isRunning = false;
+			piAccuracyAchievedNilkantha = pdFALSE;
+		}
+
+		if (isRunning)
+		{
+			// Nilkantha formula for ? approximation
+			pi_approximation_nilkantha += sign * (4.0 / ((2 * iterations + 2) * (2 * iterations + 3) * (2 * iterations + 4)));
+
+			
+			// Check for accuracy
+			if (!piAccuracyAchievedNilkantha && fabs(pi_approximation_nilkantha - M_PI) < 0.00001)
+			{
+				piAccuracyAchievedNilkantha = pdTRUE;
+				elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;
+				isRunning = false; // Optionally, stop the calculation after accuracy is achieved
+			}
+
+			sign = -sign;
+			iterations++;
+		}
+
+		vTaskDelay(pdMS_TO_TICKS(10)); // Optional delay to prevent CPU hogging
 	}
 }
 
@@ -205,8 +252,19 @@ void vControllerTask(void* pvParameters)
 			break;
 
 			case EVBUTTONS_S4: // Change Algorithm
-			currentAlgorithm = (currentAlgorithm == LEIBNIZ) ? NILKANTHA : LEIBNIZ; // Toggle algorithm
+			if(currentAlgorithm == LEIBNIZ) {
+				// If currently on Leibniz, switch to Nilkantha
+				vTaskSuspend(xLeibnizTaskHandle);
+				vTaskResume(xNilkanthaTaskHandle);
+				currentAlgorithm = NILKANTHA;
+				} else {
+				// If currently on Nilkantha, switch to Leibniz
+				vTaskSuspend(xNilkanthaTaskHandle);
+				vTaskResume(xLeibnizTaskHandle);
+				currentAlgorithm = LEIBNIZ;
+			}
 			break;
+
 
 			default:
 			break;
@@ -252,7 +310,7 @@ void vControllerTask(void* pvParameters)
 			vDisplayWriteStringAtPos(3, 0, "#STR #STP #RST #CALG");
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(10));
+		vTaskDelay(pdMS_TO_TICKS(500));
 	}
 }
 
