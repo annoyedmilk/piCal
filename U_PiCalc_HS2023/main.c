@@ -85,6 +85,9 @@ TickType_t startTimeNilkantha = 0, elapsedTimeNilkantha = 0;
 TaskHandle_t xLeibnizTaskHandle = NULL;
 TaskHandle_t xNilkanthaTaskHandle = NULL;
 
+bool isLeibnizRunning = false;
+bool isNilkanthaRunning = false;
+
 // Semaphores and Event Groups
 SemaphoreHandle_t xResetSemaphore = NULL;
 SemaphoreHandle_t xStartSemaphore = NULL;
@@ -127,21 +130,20 @@ void vPiCalcLeibnizTask(void* pvParameters)
 {
 	uint32_t iterations = 0;
 	float sign = 1.0;
-	bool isRunning = false;
 
 	for (;;)
 	{
 		// Check if we should start the calculation
 		if (xSemaphoreTake(xStartSemaphore, 0) == pdTRUE)
 		{
-			isRunning = true;
+			isLeibnizRunning = true;  // Set the flag
 			startTimeLeibniz = xTaskGetTickCount(); // Capture start time
 		}
 
 		// Check if we should stop the calculation
 		if (xSemaphoreTake(xStopSemaphore, 0) == pdTRUE)
 		{
-			isRunning = false;
+			isLeibnizRunning = false;  // Clear the flag
 		}
 
 		// Check if we should reset
@@ -150,11 +152,11 @@ void vPiCalcLeibnizTask(void* pvParameters)
 			pi_approximation_leibniz = 0.0;
 			iterations = 0;
 			sign = 1.0;
-			isRunning = false;
+			isLeibnizRunning = false;  // Clear the flag
 			piAccuracyAchievedLeibniz = pdFALSE;
 		}
 
-		if (isRunning)
+		if (isLeibnizRunning)
 		{
 			// Leibniz formula for pi approximation
 			pi_approximation_leibniz += (sign / (2 * iterations + 1)) * 4;
@@ -163,8 +165,7 @@ void vPiCalcLeibnizTask(void* pvParameters)
 			if (!piAccuracyAchievedLeibniz && fabs(pi_approximation_leibniz - M_PI) < 0.00001)
 			{
 				piAccuracyAchievedLeibniz = pdTRUE;
-				elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;
-				//isRunning = false; // Optionally, stop the calculation after accuracy is achieved
+				//isLeibnizRunning = false;  // Optionally, stop the calculation after accuracy is achieved
 			}
 
 			sign = -sign;
@@ -188,6 +189,7 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 		if (xSemaphoreTake(xStartSemaphore, 0) == pdTRUE)
 		{
 			isRunning = true;
+			isNilkanthaRunning = true; // Set global flag to true
 			startTimeNilkantha = xTaskGetTickCount(); // Capture start time
 		}
 
@@ -195,6 +197,7 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 		if (xSemaphoreTake(xStopSemaphore, 0) == pdTRUE)
 		{
 			isRunning = false;
+			isNilkanthaRunning = false; // Set global flag to false
 		}
 
 		// Check if we should reset
@@ -204,6 +207,7 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 			iterations = 0;
 			sign = 1.0;
 			isRunning = false;
+			isNilkanthaRunning = false; // Set global flag to false
 			piAccuracyAchievedNilkantha = pdFALSE;
 		}
 
@@ -264,15 +268,15 @@ void vControllerTask(void* pvParameters)
 			}
 			break;
 
-
 			default:
 			break;
 		}
 		
-		if (!piAccuracyAchievedLeibniz) {
+		// Update elapsed time only if the approximation task is running
+		if (isLeibnizRunning && !piAccuracyAchievedLeibniz) {
 			elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;
 		}
-		if (!piAccuracyAchievedNilkantha) {
+		if (isNilkanthaRunning && !piAccuracyAchievedNilkantha) {  // Assuming you have a similar flag for Nilkantha
 			elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;
 		}
 
