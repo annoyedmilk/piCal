@@ -85,6 +85,7 @@ TickType_t startTimeNilkantha = 0, elapsedTimeNilkantha = 0;
 TaskHandle_t xLeibnizTaskHandle = NULL;
 TaskHandle_t xNilkanthaTaskHandle = NULL;
 
+// Running flag for formula
 bool isLeibnizRunning = false;
 bool isNilkanthaRunning = false;
 
@@ -181,14 +182,12 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 {
 	uint32_t iterations = 0;
 	float sign = 1.0;
-	bool isRunning = false;
 
 	for (;;)
 	{
 		// Check if we should start the calculation
 		if (xSemaphoreTake(xStartSemaphore, 0) == pdTRUE)
 		{
-			isRunning = true;
 			isNilkanthaRunning = true; // Set global flag to true
 			startTimeNilkantha = xTaskGetTickCount(); // Capture start time
 		}
@@ -196,7 +195,6 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 		// Check if we should stop the calculation
 		if (xSemaphoreTake(xStopSemaphore, 0) == pdTRUE)
 		{
-			isRunning = false;
 			isNilkanthaRunning = false; // Set global flag to false
 		}
 
@@ -206,12 +204,11 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 			pi_approximation_nilkantha = 3.0;
 			iterations = 0;
 			sign = 1.0;
-			isRunning = false;
 			isNilkanthaRunning = false; // Set global flag to false
 			piAccuracyAchievedNilkantha = pdFALSE;
 		}
 
-		if (isRunning)
+		if (isNilkanthaRunning)
 		{
 			// Nilkantha formula for pi approximation
 			pi_approximation_nilkantha += sign * (4.0 / ((2 * iterations + 2) * (2 * iterations + 3) * (2 * iterations + 4)));
