@@ -188,14 +188,14 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 		// Check if we should start the calculation
 		if (xSemaphoreTake(xStartSemaphore, 0) == pdTRUE)
 		{
-			isNilkanthaRunning = true; // Set global flag to true
+			isNilkanthaRunning = true; // Set the flag
 			startTimeNilkantha = xTaskGetTickCount(); // Capture start time
 		}
 
 		// Check if we should stop the calculation
 		if (xSemaphoreTake(xStopSemaphore, 0) == pdTRUE)
 		{
-			isNilkanthaRunning = false; // Set global flag to false
+			isNilkanthaRunning = false; // Set the flag
 		}
 
 		// Check if we should reset
@@ -204,7 +204,7 @@ void vPiCalcNilkanthaTask(void* pvParameters)
 			pi_approximation_nilkantha = 3.0;
 			iterations = 0;
 			sign = 1.0;
-			isNilkanthaRunning = false; // Set global flag to false
+			isNilkanthaRunning = false; // Set the flag
 			piAccuracyAchievedNilkantha = pdFALSE;
 		}
 
@@ -249,6 +249,11 @@ void vControllerTask(void* pvParameters)
 			
 			case EVBUTTONS_S3: // Reset
 			xSemaphoreGive(xResetSemaphore);
+			if(currentAlgorithm == LEIBNIZ) {
+				startTimeLeibniz = xTaskGetTickCount(); // Reset start time for Leibniz
+				} else if(currentAlgorithm == NILKANTHA) {
+				startTimeNilkantha = xTaskGetTickCount(); // Reset start time for Nilkantha
+			}
 			break;
 
 			case EVBUTTONS_S4: // Change Algorithm
@@ -273,7 +278,7 @@ void vControllerTask(void* pvParameters)
 		if (isLeibnizRunning && !piAccuracyAchievedLeibniz) {
 			elapsedTimeLeibniz = xTaskGetTickCount() - startTimeLeibniz;
 		}
-		if (isNilkanthaRunning && !piAccuracyAchievedNilkantha) {  // Assuming you have a similar flag for Nilkantha
+		if (isNilkanthaRunning && !piAccuracyAchievedNilkantha) {
 			elapsedTimeNilkantha = xTaskGetTickCount() - startTimeNilkantha;
 		}
 
@@ -290,8 +295,6 @@ void vControllerTask(void* pvParameters)
 			
 			sprintf(timeStringLeibniz, "Time: %lu ms", elapsedTimeLeibniz);
 			vDisplayWriteStringAtPos(2, 0, "%s", timeStringLeibniz);
-			
-			vDisplayWriteStringAtPos(3, 0, "#STR #STP #RST #CALG");
 		}
 
 		if (currentAlgorithm == NILKANTHA)
@@ -306,9 +309,9 @@ void vControllerTask(void* pvParameters)
 			
 			sprintf(timeStringNilkantha, "Time: %lu ms", elapsedTimeNilkantha);
 			vDisplayWriteStringAtPos(2, 0, "%s", timeStringNilkantha);
-			
-			vDisplayWriteStringAtPos(3, 0, "#STR #STP #RST #CALG");
 		}
+		
+		vDisplayWriteStringAtPos(3, 0, "#STR #STP #RST #CALG");
 
 		vTaskDelay(pdMS_TO_TICKS(500));
 	}
