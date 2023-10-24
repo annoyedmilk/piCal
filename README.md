@@ -29,7 +29,14 @@ The AVR Pi Calculator, codenamed U_PiCalc_HS2023, is a sophisticated system desi
   - Toggle between approximation methods
 - **Real-time Display**: View the current π approximation, the method in use, and the time elapsed since the start of the calculation.
 
+<<<<<<< Updated upstream
 ## Installation
+=======
+## Experimental Branch
+I have introduced an experimental branch that contains a refactored and optimized version of the Pi calculation tasks. This branch combines the two calculation methods into a single task, introduces clearer enumerations, and streamlines the button handling logic. It's a major overhaul aimed at improving code maintainability and potential performance. Feel free to check it out and provide feedback!
+
+## File Description
+>>>>>>> Stashed changes
 
 1. **Clone the Repository**: Clone or download the project repository from GitHub.
 2. **Setup the Hardware**:
@@ -52,6 +59,7 @@ The AVR Pi Calculator, codenamed U_PiCalc_HS2023, is a sophisticated system desi
 
 ## FAQ
 
+<<<<<<< Updated upstream
 - **Q**: How accurate is the approximation?
   - **A**: The accuracy depends on the number of iterations and the method in use. Generally, the Nilkantha Method converges faster than the Leibniz Series.
 
@@ -60,6 +68,11 @@ The AVR Pi Calculator, codenamed U_PiCalc_HS2023, is a sophisticated system desi
 
 - **Q**: How do I troubleshoot display issues?
   - **A**: Ensure the NHD0420Driver is correctly connected and initialized in the code. Check the display's datasheet for specific troubleshooting steps.
+=======
+1. **Setup the Hardware**: Ensure the AVR platform is correctly wired with the display (NHD0420Driver) and buttons (ButtonHandler).
+2. **Compile and Upload**: Compile the `main.c` file using an AVR-compatible C compiler and upload it to the AVR microcontroller.
+3. **Interact**: After successful upload, use the buttons to start/stop the calculations, reset, or switch between algorithms.
+>>>>>>> Stashed changes
 
 ## License
 
