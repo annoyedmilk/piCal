@@ -40,7 +40,6 @@ The AVR Pi Calculator, codenamed U_PiCalc_HS2023, is a sophisticated system desi
 I have introduced an experimental branch that contains a refactored and optimized version of the Pi calculation tasks. This branch combines the two calculation methods into a single task, introduces clearer enumerations, and streamlines the button handling logic. It's a major overhaul aimed at improving code maintainability and potential performance. Feel free to check it out and provide feedback!
 
 ## File Description
->>>>>>> Stashed changes
 
 1. **Clone the Repository**: Clone or download the project repository from GitHub.
 2. **Setup the Hardware**:
@@ -63,7 +62,6 @@ I have introduced an experimental branch that contains a refactored and optimize
 
 ## FAQ
 
-<<<<<<< Updated upstream
 - **Q**: How accurate is the approximation?
   - **A**: The accuracy depends on the number of iterations and the method in use. Generally, the Nilkantha Method converges faster than the Leibniz Series.
 
